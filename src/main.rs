@@ -7,6 +7,7 @@ use scylla::macros::FromRow;
 use scylla::frame::response::cql_to_rust::FromRow;
 use scylla::IntoTypedRows;
 use scylla::transport::retry_policy::DefaultRetryPolicy;
+use scylla::query::Query;
 
 use uuid::Uuid;
 
@@ -56,7 +57,10 @@ async fn get_vehicle(session: &State<Session>) -> Value {
     let user_id = Uuid::parse_str("d13fe953-297a-4781-807a-f9becc1b71f6").unwrap();
     let vehicle_id = Uuid::parse_str("60e18f00-34b8-4a52-916c-adbb0204618e").unwrap();
 
-    if let Some(rows) = session.query("SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?", (user_id, vehicle_id))
+    let mut get_vehicle_query: Query = Query::new("SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?".to_string());
+    get_vehicle_query.set_retry_policy(Box::new(DefaultRetryPolicy::new()));
+
+    if let Some(rows) = session.query(get_vehicle_query, (user_id, vehicle_id))
         .await
         .expect("Failed to execute query")
         .rows {
