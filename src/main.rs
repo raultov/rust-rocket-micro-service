@@ -11,6 +11,9 @@ use scylla::query::Query;
 
 use uuid::Uuid;
 
+use tokio_retry::Retry;
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
+
 use rocket::Request;
 use rocket::State;
 use rocket::serde::json::{Json, Value, json};
@@ -57,11 +60,18 @@ async fn get_vehicle(session: &State<Session>) -> Value {
     let user_id = Uuid::parse_str("d13fe953-297a-4781-807a-f9becc1b71f6").unwrap();
     let vehicle_id = Uuid::parse_str("60e18f00-34b8-4a52-916c-adbb0204618e").unwrap();
 
-    let mut get_vehicle_query: Query = Query::new("SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?".to_string());
-    get_vehicle_query.set_retry_policy(Box::new(DefaultRetryPolicy::new()));
+    let retry_strategy = ExponentialBackoff::from_millis(10)
+        .map(jitter) // add jitter to delays
+        .take(3);    // limit to 3 retries
 
-    if let Some(rows) = session.query(get_vehicle_query, (user_id, vehicle_id))
-        .await
+
+    let result = Retry::spawn(retry_strategy, || {
+        let mut get_vehicle_query: Query = Query::new("SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?".to_string());
+        get_vehicle_query.set_retry_policy(Box::new(DefaultRetryPolicy::new()));
+        session.query(get_vehicle_query, (user_id, vehicle_id))
+    }).await;
+
+    if let Some(rows) = result
         .expect("Failed to execute query")
         .rows {
             for row in rows.into_typed::<VehicleName>() {
