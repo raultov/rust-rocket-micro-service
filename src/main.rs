@@ -21,10 +21,10 @@ use rocket::serde::{Serialize, Deserialize};
 
 #[get("/hello")]
 async fn hello() -> Value {
-  json!({
-    "status": "success",
-    "message": "Hello API!"
-  })
+    json!({
+        "status": "success",
+        "message": "Hello API!"
+    })
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -63,7 +63,6 @@ async fn get_vehicle(session: &State<Session>) -> Value {
     let retry_strategy = ExponentialBackoff::from_millis(10)
         .map(jitter) // add jitter to delays
         .take(3);    // limit to 3 retries
-
 
     let result = Retry::spawn(retry_strategy, || {
         let mut get_vehicle_query: Query = Query::new("SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?".to_string());
