@@ -17,4 +17,4 @@ tokio-retry = "0.3"
 
 [dependencies.rocket]
 version = "0.5.0-dev"
-features = ["json"]
+features = ["json", "uuid"]

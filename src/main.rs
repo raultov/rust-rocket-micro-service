@@ -9,7 +9,7 @@ use scylla::IntoTypedRows;
 use scylla::transport::retry_policy::DefaultRetryPolicy;
 use scylla::query::Query;
 
-use uuid::Uuid;
+use rocket::serde::uuid::Uuid;
 
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
@@ -53,12 +53,10 @@ struct VehicleName {
     name: String
 }
 
-#[get("/vehicle")]
-async fn get_vehicle(session: &State<Session>) -> Value {
+#[get("/vehicle/<user_id>/<vehicle_id>")]
+async fn get_vehicle(session: &State<Session>, user_id: Uuid, vehicle_id: Uuid) -> Value {
 
     let mut name: String = "unknown".to_string();
-    let user_id = Uuid::parse_str("d13fe953-297a-4781-807a-f9becc1b71f6").unwrap();
-    let vehicle_id = Uuid::parse_str("60e18f00-34b8-4a52-916c-adbb0204618e").unwrap();
 
     let retry_strategy = ExponentialBackoff::from_millis(10)
         .map(jitter) // add jitter to delays
