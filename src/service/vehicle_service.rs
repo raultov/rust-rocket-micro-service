@@ -1,7 +1,7 @@
 use rocket::serde::uuid::Uuid;
 
 use crate::repository::vehicle_repository::VehicleRepository;
-use crate::domain::vehicle::VehicleName;
+use crate::domain::vehicle::Vehicle;
 
 const UNKNOWN: &str = "unknown";
 
@@ -16,12 +16,12 @@ impl VehicleService {
         }
     }
 
-    pub async fn get_vehicle_name(self: &Self, user_id: &Uuid, &vehicle_id: &Uuid) -> String {
-        let vehicle_name: Option<VehicleName> = self.vehicle_repository.get_vehicle_name(&user_id, &vehicle_id).await;
+    pub async fn get_vehicle_name(self: &Self, user_id: Uuid, vehicle_id: Uuid) -> String {
+        let vehicle: Option<Vehicle> = self.vehicle_repository.get_vehicle_name(user_id, vehicle_id).await;
 
-        match vehicle_name {
+        match vehicle {
             None => UNKNOWN.to_string(),
-            Some(vehicle_name) => vehicle_name.name,
+            Some(vehicle) => vehicle.name,
         }
     }
 }

@@ -14,11 +14,12 @@ use crate::service::vehicle_service::VehicleService;
 use crate::controller::controllers;
 use crate::controller::catchers;
 
+const NODE: &str = "nuckito:9042";
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
 
-    let vehicle_repository = VehicleRepository::new("nuckito:9042").await;
+    let vehicle_repository = VehicleRepository::new(NODE).await;
     let vehicle_service = VehicleService::new(vehicle_repository).await;
 
     rocket::build()

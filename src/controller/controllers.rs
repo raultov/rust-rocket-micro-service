@@ -25,7 +25,7 @@ pub async fn new_book(book: Json<Book>) -> Value {
 #[get("/vehicle/<user_id>/<vehicle_id>")]
 pub async fn get_vehicle(vehicle_service: &State<VehicleService>, user_id: Uuid, vehicle_id: Uuid) -> Value {
 
-  let name = vehicle_service.get_vehicle_name(&user_id, &vehicle_id).await;
+  let name = vehicle_service.get_vehicle_name(user_id, vehicle_id).await;
 
   json!({
     "vehicle_id": vehicle_id,
