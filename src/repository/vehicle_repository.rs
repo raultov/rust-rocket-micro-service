@@ -1,40 +1,26 @@
-use cfg_if::cfg_if;
-
+use std::sync::Arc;
 use scylla::IntoTypedRows;
-use scylla::query::Query;
-
-use tokio_retry::Retry;
-use tokio_retry::strategy::{ExponentialBackoff, jitter};
 
 use rocket::serde::uuid::Uuid;
 
+use crate::dao::session_manager::Queriable;
 use crate::domain::vehicle::Vehicle;
 
-const SELECT_QUERY: &str = "SELECT name FROM vehicles.vehicle WHERE user_id = ? and vehicle_id = ?";
-
 pub struct VehicleRepository {
-    session: Session
+    queriable: Arc<dyn Queriable + Sync + Send + 'static>,
 }
 
 impl VehicleRepository {
-    pub async fn new(node: &str) -> VehicleRepository {
-
-        let session = VehicleRepository::create_session(node).await;
-
+    pub fn new(queriable: Arc<dyn Queriable + Sync + Send + 'static>) -> VehicleRepository {
         VehicleRepository {
-            session
+            queriable
         }
     }
 
     pub async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle> {
-        let retry_strategy = ExponentialBackoff::from_millis(10)
-            .map(jitter) // add jitter to delays
-            .take(3);    // limit to 3 retries
+        let query = format!("SELECT name FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
 
-        let result = Retry::spawn(retry_strategy, || {
-            let get_vehicle_query: Query = Query::new(SELECT_QUERY.to_string());
-            self.session.query(get_vehicle_query, (user_id, vehicle_id))
-        }).await;
+        let result = self.queriable.execute_query(&query).await;
 
         if let Some(rows) = result
             .expect("Failed to execute query") // TODO return Result instead of failing here
@@ -47,83 +33,46 @@ impl VehicleRepository {
 
         None
     }
-
-    async fn create_session(_node: &str) -> Session {
-        cfg_if! {
-            if #[cfg(test)] {
-                tests::MockSession::new()
-            } else {
-                SessionBuilder::new()
-                    .known_node(_node)
-                    .build()
-                    .await
-                    .expect(&format!("Failed to connect {}", _node))
-            }
-        }
-    }
-}
-
-cfg_if! {
-    if #[cfg(test)] {
-        use tests::MockSession as Session;
-        use tests::Queryable;
-
-        macro_rules! aw {
-            ($e: expr) => {
-                tokio_test::block_on($e)
-            };
-        }
-    } else {
-        use scylla::Session;
-        use scylla::SessionBuilder;
-    }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use std::panic::catch_unwind;
     use scylla::QueryResult;
     use scylla::transport::errors::QueryError;
-    use scylla::query::Query;
+    use scylla::frame::response::result::CqlValue;
 
-    use mockall::{automock, mock, predicate::*};
+    use mockall::{mock, predicate::*};
 
-    #[automock]
-    #[async_trait]
-    pub trait Queryable {
-        async fn query(&self, query: Query, values: (Uuid, Uuid)) -> Result<QueryResult, QueryError>;
+    macro_rules! aw {
+        ($e: expr) => {
+            tokio_test::block_on($e)
+        };
     }
 
     mock! {
-        pub Session {}
+        #[derive(Debug, Copy, Clone)]
+        SessionManager {}
 
         #[async_trait]
-        impl Queryable for Session {
-            pub async fn query(&self, query: Query, values: (Uuid, Uuid)) -> Result<QueryResult, QueryError>;
+        impl Queriable for SessionManager {
+            async fn execute_query(&self, query_statement: &str) -> Result<QueryResult, QueryError>;
         }
     }
 
     #[test]
-    fn when_new_then_returns_vehicle_repository() {
-        let vehicle_repository = aw!(VehicleRepository::new("node"));
-
-        //assert!(vehicle_repository.session.expect());
-    }
-
-    #[test]
     fn when_get_vehicle_name_then_returns_vehicle_name() {
-        let mut vehicle_repository = aw!(VehicleRepository::new("node"));
+        let mut session_manager = MockSessionManager::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.session.expect_query()
-            .withf(|query: &Query, _| query.get_contents() == SELECT_QUERY.to_string())
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.0.to_string() == fixture::USER_ID_STR)
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.1.to_string() == fixture::VEHICLE_ID_STR)
+        session_manager.expect_execute_query()
+            .withf(|query: &str| query == fixture::EXPECTED_QUERY)
             .times(1)
-            .returning(move |_, _| fixture::forge_query_result());
+            .returning(move |_| fixture::create_query_result(CqlValue::Text(fixture::EXPECTED_VEHICLE_NAME.to_string())));
+
+        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
 
         let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id)).unwrap();
 
@@ -132,17 +81,17 @@ pub mod tests {
 
     #[test]
     fn given_no_matching_row_when_get_vehicle_name_then_returns_none() {
-        let mut vehicle_repository = aw!(VehicleRepository::new("node"));
+        let mut session_manager = MockSessionManager::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.session.expect_query()
-            .withf(|query: &Query, _| query.get_contents() == SELECT_QUERY.to_string())
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.0.to_string() == fixture::USER_ID_STR)
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.1.to_string() == fixture::VEHICLE_ID_STR)
+        session_manager.expect_execute_query()
+            .withf(|query: &str| query == fixture::EXPECTED_QUERY)
             .times(1)
-            .returning(move |_, _| Ok(QueryResult::default()));
+            .returning(move |_| Ok(QueryResult::default()));
+
+        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
 
         let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
 
@@ -150,60 +99,54 @@ pub mod tests {
     }
 
     #[test]
-    fn given_error_when_get_vehicle_name_and_no_matching_row_then_retries_up_to_4_times_then_panics() {
-        let mut vehicle_repository = aw!(VehicleRepository::new("node"));
+    #[should_panic]
+    fn given_error_when_get_vehicle_name_then_panics() {
+        let mut session_manager = MockSessionManager::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.session.expect_query()
-            .withf(|query: &Query, _| query.get_contents() == SELECT_QUERY.to_string())
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.0.to_string() == fixture::USER_ID_STR)
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.1.to_string() == fixture::VEHICLE_ID_STR)
-            .times(4)
-            .returning(move |_, _| Err(QueryError::InvalidMessage("error".to_owned())));
+        session_manager.expect_execute_query()
+        .withf(|query: &str| query == fixture::EXPECTED_QUERY)
+            .times(1)
+            .returning(move |_| Err(QueryError::InvalidMessage("error".to_owned())));
 
-        let result = catch_unwind(|| aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id)));
+        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
 
-        assert!(result.is_err());
+        aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
     }
 
     #[test]
-    fn given_single_error_when_get_vehicle_name_then_retries_and_returns_vehicle_name() {
-        let mut vehicle_repository = aw!(VehicleRepository::new("node"));
+    #[should_panic]
+    fn given_row_with_unexpected_type_integer_when_get_vehicle_name_then_panics() {
+        let mut session_manager = MockSessionManager::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.session.expect_query()
-            .withf(|query: &Query, _| query.get_contents() == SELECT_QUERY.to_string())
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.0.to_string() == fixture::USER_ID_STR)
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.1.to_string() == fixture::VEHICLE_ID_STR)
+        session_manager.expect_execute_query()
+        .withf(|query: &str| query == fixture::EXPECTED_QUERY)
             .times(1)
-            .returning(move |_, _| Err(QueryError::InvalidMessage("error".to_owned())));
+            .returning(move |_| fixture::create_query_result(CqlValue::Int(7)));
 
-        vehicle_repository.session.expect_query()
-            .withf(|query: &Query, _| query.get_contents() == SELECT_QUERY.to_string())
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.0.to_string() == fixture::USER_ID_STR)
-            .withf(|_, tuple: &(Uuid, Uuid)| tuple.1.to_string() == fixture::VEHICLE_ID_STR)
-            .times(1)
-            .returning(move |_, _| fixture::forge_query_result());
+        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
 
-        let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id)).unwrap();
-
-        assert_eq!(fixture::EXPECTED_VEHICLE_NAME, vehicle_name.name);
+        aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
     }
 
     mod fixture {
         use super::*;
+        use scylla::frame::response::result::Row;
+        use scylla::frame::response::result::CqlValue;
 
         pub const USER_ID_STR: &str = "a906615e-2e6a-4edb-9377-5a6b8544791b";
         pub const VEHICLE_ID_STR: &str = "88573010-cf4c-490e-9d29-f8517dc60b90";
         pub const EXPECTED_VEHICLE_NAME: &str = "the vehicle name";
+        pub const EXPECTED_QUERY: &str = "SELECT name FROM vehicles.vehicle WHERE user_id = a906615e-2e6a-4edb-9377-5a6b8544791b and vehicle_id = 88573010-cf4c-490e-9d29-f8517dc60b90";
 
-        pub fn forge_query_result() -> Result<QueryResult, QueryError> {
-            let cql_values = vec!(Some(scylla::frame::response::result::CqlValue::Text(EXPECTED_VEHICLE_NAME.to_string())));
-            let row = scylla::frame::response::result::Row {
+        pub fn create_query_result(cql_value: CqlValue) -> Result<QueryResult, QueryError> {
+            let cql_values = vec!(Some(cql_value));
+            let row = Row {
                 columns: cql_values
             };
             let empty_vec = vec!();

@@ -10,7 +10,7 @@ pub struct VehicleService {
 }
 
 impl VehicleService {
-    pub async fn new(vehicle_repository: VehicleRepository) -> VehicleService {
+    pub fn new(vehicle_repository: VehicleRepository) -> VehicleService {
         VehicleService {
             vehicle_repository
         }
