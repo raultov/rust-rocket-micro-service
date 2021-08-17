@@ -1,9 +1,11 @@
+use crate::Arc;
+
 use rocket::serde::json::{Json, Value, json};
 use rocket::State;
 use rocket::serde::uuid::Uuid;
 
 use crate::dto::book::Book;
-use crate::service::vehicle_service::VehicleService;
+use crate::service::vehicle_service::VehicleLogic;
 
 #[get("/hello")]
 pub async fn hello() -> Value {
@@ -23,9 +25,9 @@ pub async fn new_book(book: Json<Book>) -> Value {
 }
 
 #[get("/vehicle/<user_id>/<vehicle_id>")]
-pub async fn get_vehicle(vehicle_service: &State<VehicleService>, user_id: Uuid, vehicle_id: Uuid) -> Value {
+pub async fn get_vehicle(vehicle_logic: &State<Arc<dyn VehicleLogic + Sync + Send + 'static>>, user_id: Uuid, vehicle_id: Uuid) -> Value {
 
-  let name = vehicle_service.get_vehicle_name(user_id, vehicle_id).await;
+  let name = vehicle_logic.get_vehicle_name(user_id, vehicle_id).await;
 
   json!({
     "vehicle_id": vehicle_id,

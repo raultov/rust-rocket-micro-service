@@ -6,6 +6,11 @@ use rocket::serde::uuid::Uuid;
 use crate::dao::session_manager::Queriable;
 use crate::domain::vehicle::Vehicle;
 
+#[async_trait]
+pub trait VehicleManager {
+    async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
+}
+
 pub struct VehicleRepository {
     queriable: Arc<dyn Queriable + Sync + Send + 'static>,
 }
@@ -16,8 +21,11 @@ impl VehicleRepository {
             queriable
         }
     }
+}
 
-    pub async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle> {
+#[async_trait]
+impl VehicleManager for VehicleRepository {
+    async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle> {
         let query = format!("SELECT name FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
 
         let result = self.queriable.execute_query(&query).await;
@@ -51,7 +59,6 @@ pub mod tests {
     }
 
     mock! {
-        #[derive(Debug, Copy, Clone)]
         SessionManager {}
 
         #[async_trait]
