@@ -10,16 +10,16 @@ use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
 
 #[async_trait]
-pub trait Queriable {
+pub trait SessionManager {
     async fn execute_query(&self, query_statement: &str) -> Result<QueryResult, QueryError>;
 }
 
-pub struct SessionManager {
+pub struct SessionManagerImpl {
     session: Session
 }
 
-impl SessionManager {
-    pub async fn new(_node: &str) -> SessionManager {
+impl SessionManagerImpl {
+    pub async fn new(_node: &str) -> SessionManagerImpl {
         cfg_if! {
             if #[cfg(test)] {
                 let session = tests::MockSession::new();
@@ -32,14 +32,14 @@ impl SessionManager {
             }
         }
 
-        SessionManager {
+        SessionManagerImpl {
             session
         }
     }
 }
 
 #[async_trait]
-impl Queriable for SessionManager {
+impl SessionManager for SessionManagerImpl {
     async fn execute_query(&self, query_statement: &str) -> Result<QueryResult, QueryError> {
         let retry_strategy = ExponentialBackoff::from_millis(10)
             .map(jitter) // add jitter to delays
@@ -78,7 +78,7 @@ pub mod tests {
     use scylla::query::Query;
     use scylla::frame::response::result::CqlValue;
 
-    use mockall::{automock, mock, predicate::*};
+    use mockall::{automock, mock};
 
     #[automock]
     #[async_trait]
@@ -101,14 +101,14 @@ pub mod tests {
 
     #[test]
     fn when_new_then_returns_session_manager() {
-        let session_manager = aw!(SessionManager::new("node"));
+        let session_manager = aw!(SessionManagerImpl::new("node"));
 
-        assert_eq!(get_type_of(&session_manager), "rust_rocket_micro_service::dao::session_manager::SessionManager");
+        assert_eq!(get_type_of(&session_manager), "rust_rocket_micro_service::dao::session_manager::SessionManagerImpl");
     }
 
     #[test]
     fn when_execute_query_then_returns_query_result_ok() {
-        let mut session_manager = aw!(SessionManager::new("node"));
+        let mut session_manager = aw!(SessionManagerImpl::new("node"));
 
         session_manager.session.expect_query()
             .withf(|query: &Query, _| query.get_contents() == fixture::QUERY_STR.to_string())
@@ -131,7 +131,7 @@ pub mod tests {
 
     #[test]
     fn given_no_matching_row_when_execute_query_then_returns_query_result_ok() {
-        let mut session_manager = aw!(SessionManager::new("node"));
+        let mut session_manager = aw!(SessionManagerImpl::new("node"));
 
         session_manager.session.expect_query()
             .withf(|query: &Query, _| query.get_contents() == fixture::QUERY_STR.to_string())
@@ -150,7 +150,7 @@ pub mod tests {
 
     #[test]
     fn given_error_when_execute_query_then_retries_up_to_4_times_then_returns_query_error() {
-        let mut session_manager = aw!(SessionManager::new("node"));
+        let mut session_manager = aw!(SessionManagerImpl::new("node"));
 
         session_manager.session.expect_query()
             .withf(|query: &Query, _| query.get_contents() == fixture::QUERY_STR.to_string())
@@ -165,7 +165,7 @@ pub mod tests {
 
     #[test]
     fn given_single_error_when_execute_query_then_retries_and_returns_query_result_ok() {
-        let mut session_manager = aw!(SessionManager::new("node"));
+        let mut session_manager = aw!(SessionManagerImpl::new("node"));
 
         session_manager.session.expect_query()
             .withf(|query: &Query, _| query.get_contents() == fixture::QUERY_STR.to_string())

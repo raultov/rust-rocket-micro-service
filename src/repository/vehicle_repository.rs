@@ -3,28 +3,28 @@ use scylla::IntoTypedRows;
 
 use rocket::serde::uuid::Uuid;
 
-use crate::dao::session_manager::Queriable;
+use crate::dao::session_manager::SessionManager;
 use crate::domain::vehicle::Vehicle;
 
 #[async_trait]
-pub trait VehicleManager {
+pub trait VehicleRepository {
     async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
 }
 
-pub struct VehicleRepository {
-    queriable: Arc<dyn Queriable + Sync + Send + 'static>,
+pub struct VehicleRepositoryImpl {
+    queriable: Arc<dyn SessionManager + Sync + Send + 'static>,
 }
 
-impl VehicleRepository {
-    pub fn new(queriable: Arc<dyn Queriable + Sync + Send + 'static>) -> VehicleRepository {
-        VehicleRepository {
+impl VehicleRepositoryImpl {
+    pub fn new(queriable: Arc<dyn SessionManager + Sync + Send + 'static>) -> VehicleRepositoryImpl {
+        VehicleRepositoryImpl {
             queriable
         }
     }
 }
 
 #[async_trait]
-impl VehicleManager for VehicleRepository {
+impl VehicleRepository for VehicleRepositoryImpl {
     async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle> {
         let query = format!("SELECT name FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
 
@@ -50,7 +50,7 @@ pub mod tests {
     use scylla::transport::errors::QueryError;
     use scylla::frame::response::result::CqlValue;
 
-    use mockall::{mock, predicate::*};
+    use mockall::mock;
 
     macro_rules! aw {
         ($e: expr) => {
@@ -59,17 +59,17 @@ pub mod tests {
     }
 
     mock! {
-        SessionManager {}
+        SessionManagerImpl {}
 
         #[async_trait]
-        impl Queriable for SessionManager {
+        impl SessionManager for SessionManagerImpl {
             async fn execute_query(&self, query_statement: &str) -> Result<QueryResult, QueryError>;
         }
     }
 
     #[test]
     fn when_get_vehicle_name_then_returns_vehicle_name() {
-        let mut session_manager = MockSessionManager::new();
+        let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
@@ -79,7 +79,7 @@ pub mod tests {
             .times(1)
             .returning(move |_| fixture::create_query_result(CqlValue::Text(fixture::EXPECTED_VEHICLE_NAME.to_string())));
 
-        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
         let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id)).unwrap();
 
@@ -88,7 +88,7 @@ pub mod tests {
 
     #[test]
     fn given_no_matching_row_when_get_vehicle_name_then_returns_none() {
-        let mut session_manager = MockSessionManager::new();
+        let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
@@ -98,7 +98,7 @@ pub mod tests {
             .times(1)
             .returning(move |_| Ok(QueryResult::default()));
 
-        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
         let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
 
@@ -108,7 +108,7 @@ pub mod tests {
     #[test]
     #[should_panic]
     fn given_error_when_get_vehicle_name_then_panics() {
-        let mut session_manager = MockSessionManager::new();
+        let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
@@ -118,7 +118,7 @@ pub mod tests {
             .times(1)
             .returning(move |_| Err(QueryError::InvalidMessage("error".to_owned())));
 
-        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
         aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
     }
@@ -126,7 +126,7 @@ pub mod tests {
     #[test]
     #[should_panic]
     fn given_row_with_unexpected_type_integer_when_get_vehicle_name_then_panics() {
-        let mut session_manager = MockSessionManager::new();
+        let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
@@ -136,7 +136,7 @@ pub mod tests {
             .times(1)
             .returning(move |_| fixture::create_query_result(CqlValue::Int(7)));
 
-        let vehicle_repository = VehicleRepository::new(Arc::new(session_manager));
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
         aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
     }

@@ -15,11 +15,12 @@ scylla-macros = { git = "https://github.com/scylladb/scylla-rust-driver", branch
 tokio-retry = "0.3"
 cfg-if = "0.1"
 async-trait = "0.1.51"
+mockall_double = "0.2.0"
+mockall = "0.10.2"
 
 [dependencies.rocket]
 version = "0.5.0-dev"
 features = ["json", "uuid"]
 
 [dev-dependencies]
-mockall = "0.10.2"
 tokio-test = "*"

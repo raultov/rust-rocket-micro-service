@@ -1,32 +1,26 @@
 use std::sync::Arc;
 
 use rocket::serde::uuid::Uuid;
+use mockall::automock;
 
-use crate::repository::vehicle_repository::VehicleManager;
+use crate::repository::vehicle_repository::VehicleRepository;
 use crate::domain::vehicle::Vehicle;
 
 const UNKNOWN: &str = "unknown";
 
-#[async_trait]
-pub trait VehicleLogic {
-    async fn get_vehicle_name(self: &Self, user_id: Uuid, vehicle_id: Uuid) -> String;
-}
-
 pub struct VehicleService {
-    vehicle_repository: Arc<dyn VehicleManager + Sync + Send + 'static>,
+    vehicle_repository: Arc<dyn VehicleRepository + Sync + Send>,
 }
 
+#[automock]
 impl VehicleService {
-    pub fn new(vehicle_repository: Arc<dyn VehicleManager + Sync + Send + 'static>) -> VehicleService {
+    pub fn new(vehicle_repository: Arc<dyn VehicleRepository + Sync + Send>) -> VehicleService {
         VehicleService {
             vehicle_repository
         }
     }
-}
 
-#[async_trait]
-impl VehicleLogic for VehicleService {
-    async fn get_vehicle_name(self: &Self, user_id: Uuid, vehicle_id: Uuid) -> String {
+    pub async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> String {
         let vehicle: Option<Vehicle> = self.vehicle_repository.get_vehicle_name(user_id, vehicle_id).await;
 
         match vehicle {
@@ -40,7 +34,7 @@ impl VehicleLogic for VehicleService {
 pub mod tests {
     use super::*;
 
-    use mockall::{mock, predicate::*};
+    use mockall::mock;
 
     macro_rules! aw {
         ($e: expr) => {
@@ -49,17 +43,17 @@ pub mod tests {
     }
 
     mock! {
-        VehicleRepository {}
+        VehicleRepositoryImpl {}
 
         #[async_trait]
-        impl VehicleManager for VehicleRepository {
+        impl VehicleRepository for VehicleRepositoryImpl {
             async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
         }
     }
 
     #[test]
     fn when_get_vehicle_name_then_returns_vehicle_name() {
-        let mut vehicle_repository = MockVehicleRepository::new();
+        let mut vehicle_repository = MockVehicleRepositoryImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
@@ -80,7 +74,7 @@ pub mod tests {
 
     #[test]
     fn given_none_when_get_vehicle_name_then_returns_unknown() {
-        let mut vehicle_repository = MockVehicleRepository::new();
+        let mut vehicle_repository = MockVehicleRepositoryImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
