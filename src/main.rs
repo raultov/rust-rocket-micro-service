@@ -11,6 +11,7 @@ mod controller {
 }
 
 use std::sync::Arc;
+use std::env;
 
 use crate::dao::session_manager::SessionManagerImpl;
 use crate::repository::vehicle_repository::VehicleRepositoryImpl;
@@ -18,12 +19,14 @@ use crate::service::vehicle_service::VehicleService;
 use crate::controller::controllers;
 use crate::controller::catchers;
 
-const NODE: &str = "nuckito:9042";
+const CASSANDRA_NODE: &str = "localhost:9042";
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
 
-    let session_manager = SessionManagerImpl::new(NODE).await;
+    let cassandra_node = env::var("CASSANDRA_NODE").unwrap_or_else(|_| CASSANDRA_NODE.to_string());
+
+    let session_manager = SessionManagerImpl::new(&cassandra_node).await;
     let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
     let vehicle_service = VehicleService::new(Arc::new(vehicle_repository));
 
