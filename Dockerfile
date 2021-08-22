@@ -9,7 +9,7 @@ FROM cassandra:3.11.11 as build
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH /root/.cargo/bin:$PATH
 RUN rustup update
-RUN apt-get update && apt-get install -yq build-essential jq
+RUN apt-get update && apt-get install -yq build-essential jq apache2-utils
 
 # set working directory
 WORKDIR /app

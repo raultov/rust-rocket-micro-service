@@ -1,0 +1,12 @@
+version: '3.7'
+
+services:
+
+  mechamain-ui:
+    container_name: rust-vehicle-service
+    image: nuckito:5000/raultov/rust-rocket-vehicle-service:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
