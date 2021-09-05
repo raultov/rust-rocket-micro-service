@@ -4,7 +4,9 @@ use rocket::serde::uuid::Uuid;
 use mockall::automock;
 
 use crate::repository::vehicle_repository::VehicleRepository;
+use crate::mapper::vehicle_mapper;
 use crate::domain::vehicle::Vehicle;
+use crate::dto::vehicle_dto::VehicleDTO;
 
 const UNKNOWN: &str = "unknown";
 
@@ -14,19 +16,27 @@ pub struct VehicleService {
 
 #[automock]
 impl VehicleService {
-    pub fn new(vehicle_repository: Arc<dyn VehicleRepository + Sync + Send>) -> VehicleService {
+    pub fn new(vehicle_repository: Arc<dyn VehicleRepository+ Sync + Send>) -> VehicleService {
         VehicleService {
             vehicle_repository
         }
     }
 
     pub async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> String {
-        let vehicle: Option<Vehicle> = self.vehicle_repository.get_vehicle_name(user_id, vehicle_id).await;
+        let vehicle: Option<Vehicle> = self.vehicle_repository.get_vehicle(user_id, vehicle_id).await;
 
         match vehicle {
             None => UNKNOWN.to_string(),
             Some(vehicle) => vehicle.name,
         }
+    }
+
+    pub async fn save_vehicle(&self, vehicle_dto: VehicleDTO) -> VehicleDTO {
+        let new_vehicle = vehicle_mapper::get_vehicle(vehicle_dto);
+
+        let vehicle = self.vehicle_repository.save_vehicle(new_vehicle).await;
+
+        vehicle_mapper::get_vehicle_dto(vehicle)
     }
 }
 
@@ -47,7 +57,8 @@ pub mod tests {
 
         #[async_trait]
         impl VehicleRepository for VehicleRepositoryImpl {
-            async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
+            async fn get_vehicle(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
+            async fn save_vehicle(&self, vehicle: Vehicle) -> Vehicle;
         }
     }
 
@@ -58,11 +69,11 @@ pub mod tests {
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.expect_get_vehicle_name()
+        vehicle_repository.expect_get_vehicle()
             .withf(|user_id: &Uuid, _| user_id == &Uuid::parse_str(fixture::USER_ID_STR).unwrap())
             .withf(|_, vehicle_id: &Uuid| vehicle_id == &Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap())
             .times(1)
-            .returning(move |_, _| Some(Vehicle {name: fixture::EXPECTED_VEHICLE_NAME.to_string()}))
+            .returning(move |_, _| Some(Vehicle {name: fixture::EXPECTED_VEHICLE_NAME.to_string(), user_id: user_id, vehicle_id: vehicle_id}))
         ;
 
         let vehicle_service = VehicleService::new(Arc::new(vehicle_repository));
@@ -79,7 +90,7 @@ pub mod tests {
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
         let vehicle_id = Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap();
 
-        vehicle_repository.expect_get_vehicle_name()
+        vehicle_repository.expect_get_vehicle()
             .withf(|user_id: &Uuid, _| user_id == &Uuid::parse_str(fixture::USER_ID_STR).unwrap())
             .withf(|_, vehicle_id: &Uuid| vehicle_id == &Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap())
             .times(1)

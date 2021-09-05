@@ -1,9 +1,16 @@
 #[macro_use] extern crate rocket;
 
-mod domain { pub mod vehicle; }
-mod dto { pub mod book; }
+mod domain {
+    pub mod vehicle;
+    pub mod vehicle_type;
+}
+mod dto {
+    pub mod book;
+    pub mod vehicle_dto;
+}
 mod dao { pub mod session_manager; }
 mod service { pub mod vehicle_service; }
+mod mapper { pub mod vehicle_mapper; } 
 mod repository { pub mod vehicle_repository; }
 mod controller {
     pub mod controllers;
@@ -38,6 +45,6 @@ async fn main() -> Result<(), rocket::Error> {
 fn rocket(vehicle_service: Arc<VehicleService>) -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .register("/", catchers![catchers::internal_error, catchers::not_found])
-        .mount("/api", routes![controllers::get_vehicle, controllers::hello, controllers::new_book])
+        .mount("/api", routes![controllers::get_vehicle, controllers::hello, controllers::new_book, controllers::new_vehicle])
         .manage(vehicle_service)
 }

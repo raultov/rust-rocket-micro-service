@@ -8,7 +8,8 @@ use crate::domain::vehicle::Vehicle;
 
 #[async_trait]
 pub trait VehicleRepository {
-    async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
+    async fn get_vehicle(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
+    async fn save_vehicle(&self, vehicle: Vehicle) -> Vehicle;
 }
 
 pub struct VehicleRepositoryImpl {
@@ -25,21 +26,39 @@ impl VehicleRepositoryImpl {
 
 #[async_trait]
 impl VehicleRepository for VehicleRepositoryImpl {
-    async fn get_vehicle_name(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle> {
-        let query = format!("SELECT name FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
+    async fn get_vehicle(&self, user_id: Uuid, vehicle_id: Uuid) ->  Option<Vehicle> {
+        let query = format!("SELECT name, user_id, vehicle_id FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
 
         let result = self.queriable.execute_query(&query).await;
 
         if let Some(rows) = result
-            .expect("Failed to execute query") // TODO return Result instead of failing here
+            .expect(&format!("Failed to execute query {}", query))
             .rows {
                 for row in rows.into_typed::<Vehicle>() {
-                    let vehicle_name: Vehicle = row.expect("Failed to extract VehicleName from Row");
-                    return Some(vehicle_name);
+                    let vehicle: Vehicle = row.expect("Failed to extract Vehicle from Row");
+                    return Some(vehicle);
                 }
             };
 
         None
+    }
+
+    async fn save_vehicle(&self, vehicle: Vehicle) -> Vehicle {
+        let query = format!("
+            INSERT INTO vehicles.vehicle   (user_id,
+                                            vehicle_id,
+                                            vehicle_type,
+                                            name,
+                                            created_at,
+                                            retired_at,
+                                            brand,
+                                            model,
+                                            distance,
+                                            owner_since,
+                                            manufacturing_date,
+                                            picture) VALUES ('{}', {})", vehicle.user_id, vehicle.vehicle_id);
+
+        vehicle
     }
 }
 
@@ -68,7 +87,7 @@ pub mod tests {
     }
 
     #[test]
-    fn when_get_vehicle_name_then_returns_vehicle_name() {
+    fn when_get_vehicle_then_returns_vehicle() {
         let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
@@ -81,13 +100,15 @@ pub mod tests {
 
         let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
-        let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id)).unwrap();
+        let vehicle = aw!(vehicle_repository.get_vehicle(user_id, vehicle_id)).unwrap();
 
-        assert_eq!(fixture::EXPECTED_VEHICLE_NAME, vehicle_name.name);
+        assert_eq!(fixture::EXPECTED_VEHICLE_NAME, vehicle.name);
+        assert_eq!(user_id, vehicle.user_id);
+        assert_eq!(vehicle_id, vehicle.vehicle_id);
     }
 
     #[test]
-    fn given_no_matching_row_when_get_vehicle_name_then_returns_none() {
+    fn given_no_matching_row_when_get_vehicle_then_returns_none() {
         let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
@@ -100,14 +121,14 @@ pub mod tests {
 
         let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
-        let vehicle_name = aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
+        let vehicle = aw!(vehicle_repository.get_vehicle(user_id, vehicle_id));
 
-        assert!(vehicle_name.is_none());
+        assert!(vehicle.is_none());
     }
 
     #[test]
     #[should_panic]
-    fn given_error_when_get_vehicle_name_then_panics() {
+    fn given_error_when_get_vehicle_then_panics() {
         let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
@@ -120,12 +141,12 @@ pub mod tests {
 
         let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
-        aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
+        aw!(vehicle_repository.get_vehicle(user_id, vehicle_id));
     }
 
     #[test]
     #[should_panic]
-    fn given_row_with_unexpected_type_integer_when_get_vehicle_name_then_panics() {
+    fn given_row_with_unexpected_type_integer_when_get_vehicle_then_panics() {
         let mut session_manager = MockSessionManagerImpl::new();
 
         let user_id = Uuid::parse_str(fixture::USER_ID_STR).unwrap();
@@ -138,7 +159,7 @@ pub mod tests {
 
         let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
 
-        aw!(vehicle_repository.get_vehicle_name(user_id, vehicle_id));
+        aw!(vehicle_repository.get_vehicle(user_id, vehicle_id));
     }
 
     mod fixture {
@@ -152,7 +173,9 @@ pub mod tests {
         pub const EXPECTED_QUERY: &str = "SELECT name FROM vehicles.vehicle WHERE user_id = a906615e-2e6a-4edb-9377-5a6b8544791b and vehicle_id = 88573010-cf4c-490e-9d29-f8517dc60b90";
 
         pub fn create_query_result(cql_value: CqlValue) -> Result<QueryResult, QueryError> {
-            let cql_values = vec!(Some(cql_value));
+            let cql_values = vec!(Some(cql_value),
+                Some(CqlValue::Uuid(Uuid::parse_str(USER_ID_STR).unwrap())),
+                Some(CqlValue::Uuid(Uuid::parse_str(VEHICLE_ID_STR).unwrap())));
             let row = Row {
                 columns: cql_values
             };

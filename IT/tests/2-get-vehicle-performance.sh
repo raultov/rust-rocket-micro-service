@@ -9,7 +9,7 @@ failed_requests=$(( $(echo $response | sed 's/.*Failed requests: \([0-9]\+\).*/\
 echo "Request per second: $req_per_sec"
 echo "Num failed requests: $failed_requests"
 
-# 12000 requests/second is a calculated threshold, really dependant on the specific hardware where this script is executed
+# 12000 requests/second is a pre-calculated threshold, really dependant on the specific hardware where this script is executed
 if [ "$req_per_sec" -lt 12000 ] || [ "$failed_requests" -gt 1 ]
 then
     echo "Test failed! Either Less than 12000 request/seconds processed or more than 1 failed request"

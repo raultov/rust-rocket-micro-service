@@ -6,6 +6,7 @@ use rocket::serde::uuid::Uuid;
 use mockall_double::double;
 
 use crate::dto::book::Book;
+use crate::dto::vehicle_dto::VehicleDTO;
 
 #[double]
 use crate::service::vehicle_service::VehicleService;
@@ -35,12 +36,21 @@ pub async fn new_book(book: Json<Book>) -> Value {
 #[get("/vehicle/<user_id>/<vehicle_id>")]
 pub async fn get_vehicle(vehicle_service: &State<Arc<VehicleService>>, user_id: Uuid, vehicle_id: Uuid) -> Value {
 
-  let name = vehicle_service.get_vehicle_name(user_id, vehicle_id).await;
+    let name = vehicle_service.get_vehicle_name(user_id, vehicle_id).await;
 
-  json!({
-    "vehicle_id": vehicle_id,
-    "name": name
-  })
+    json!({
+        "vehicle_id": vehicle_id,
+        "name": name
+    })
+}
+
+#[post("/vehicle", format = "application/json", data = "<vehicle_json>")]
+pub async fn new_vehicle(vehicle_service: &State<Arc<VehicleService>>, vehicle_json: Json<VehicleDTO>) -> Json<VehicleDTO> {
+    let vehicle_dto = vehicle_json.into_inner();
+
+    let result = vehicle_service.save_vehicle(vehicle_dto).await;
+
+    Json(result)
 }
 
 #[cfg(test)]

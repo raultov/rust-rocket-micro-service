@@ -3,7 +3,7 @@
 # turn on bash's job control
 set -m
 
-echo "Atart Cassandra"
+echo "Start Cassandra"
 $CASSANDRA_HOME/bin/cassandra -R
 
 echo "Sleep 20 seconds"
