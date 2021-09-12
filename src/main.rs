@@ -1,9 +1,6 @@
 #[macro_use] extern crate rocket;
 
-mod domain {
-    pub mod vehicle;
-    pub mod vehicle_type;
-}
+mod domain { pub mod vehicle; }
 mod dto {
     pub mod book;
     pub mod vehicle_dto;

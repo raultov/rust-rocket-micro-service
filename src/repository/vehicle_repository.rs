@@ -6,10 +6,12 @@ use rocket::serde::uuid::Uuid;
 use crate::dao::session_manager::SessionManager;
 use crate::domain::vehicle::Vehicle;
 
+use chrono::{Utc, TimeZone};
+
 #[async_trait]
 pub trait VehicleRepository {
     async fn get_vehicle(&self, user_id: Uuid, vehicle_id: Uuid) -> Option<Vehicle>;
-    async fn save_vehicle(&self, vehicle: Vehicle) -> Vehicle;
+    async fn save_vehicle(&self, vehicle: Vehicle) -> Option<Vehicle>;
 }
 
 pub struct VehicleRepositoryImpl {
@@ -27,7 +29,9 @@ impl VehicleRepositoryImpl {
 #[async_trait]
 impl VehicleRepository for VehicleRepositoryImpl {
     async fn get_vehicle(&self, user_id: Uuid, vehicle_id: Uuid) ->  Option<Vehicle> {
-        let query = format!("SELECT name, user_id, vehicle_id FROM vehicles.vehicle WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
+        let query = format!("SELECT name, user_id, vehicle_id, created_at, vehicle_type, retired_at, brand, model, distance, owner_since, manufacturing_date, picture \
+            FROM vehicles.vehicle \
+            WHERE user_id = {} and vehicle_id = {}", user_id, vehicle_id);
 
         let result = self.queriable.execute_query(&query).await;
 
@@ -43,22 +47,35 @@ impl VehicleRepository for VehicleRepositoryImpl {
         None
     }
 
-    async fn save_vehicle(&self, vehicle: Vehicle) -> Vehicle {
-        let query = format!("
-            INSERT INTO vehicles.vehicle   (user_id,
-                                            vehicle_id,
-                                            vehicle_type,
-                                            name,
-                                            created_at,
-                                            retired_at,
-                                            brand,
-                                            model,
-                                            distance,
-                                            owner_since,
-                                            manufacturing_date,
-                                            picture) VALUES ('{}', {})", vehicle.user_id, vehicle.vehicle_id);
+    async fn save_vehicle(&self, vehicle: Vehicle) -> Option<Vehicle> {
+        let query = format!("\
+            INSERT INTO vehicles.vehicle   (user_id,       \
+                                            vehicle_id,    \
+                                            vehicle_type,  \
+                                            name,          \
+                                            created_at,    \
+                                            retired_at,    \
+                                            brand,         \
+                                            model,         \
+                                            distance,      \
+                                            owner_since,   \
+                                            manufacturing_date, \
+                                            picture) VALUES ({}, {}, '{}', '{}', '{}', {}, '{}', '{}', {}, '{}', '{}', {})",
+                            vehicle.user_id, vehicle.vehicle_id, vehicle.vehicle_type, vehicle.name, Utc.timestamp(vehicle.created_at.num_seconds(), 0),
+                            vehicle.retired_at.map(|d| format!("'{}'", Utc.timestamp(d.num_seconds(), 0))).unwrap_or_else(|| "null".to_string()),
+                            vehicle.brand, vehicle.model, vehicle.distance, vehicle.owner_since, vehicle.manufacturing_date,
+                            vehicle.picture.as_ref().map(|p| format!("'{}'", p)).unwrap_or_else(|| "null".to_string())
+        );
 
-        vehicle
+        let result = self.queriable.execute_query(&query).await;
+
+        match result {
+            Ok(_) => Some(vehicle),
+            Err(e) => {
+                println!("Failed to insert Vehicle {:?} with error {:?}", query, e);
+                None
+            }
+        }
     }
 }
 
@@ -170,12 +187,16 @@ pub mod tests {
         pub const USER_ID_STR: &str = "a906615e-2e6a-4edb-9377-5a6b8544791b";
         pub const VEHICLE_ID_STR: &str = "88573010-cf4c-490e-9d29-f8517dc60b90";
         pub const EXPECTED_VEHICLE_NAME: &str = "the vehicle name";
-        pub const EXPECTED_QUERY: &str = "SELECT name FROM vehicles.vehicle WHERE user_id = a906615e-2e6a-4edb-9377-5a6b8544791b and vehicle_id = 88573010-cf4c-490e-9d29-f8517dc60b90";
+        pub const EXPECTED_QUERY: &str = "SELECT name, user_id, vehicle_id, created_at, vehicle_type, retired_at, brand, model, distance, owner_since, manufacturing_date, picture \
+            FROM vehicles.vehicle \
+            WHERE user_id = a906615e-2e6a-4edb-9377-5a6b8544791b and vehicle_id = 88573010-cf4c-490e-9d29-f8517dc60b90";
 
         pub fn create_query_result(cql_value: CqlValue) -> Result<QueryResult, QueryError> {
             let cql_values = vec!(Some(cql_value),
                 Some(CqlValue::Uuid(Uuid::parse_str(USER_ID_STR).unwrap())),
-                Some(CqlValue::Uuid(Uuid::parse_str(VEHICLE_ID_STR).unwrap())));
+                Some(CqlValue::Uuid(Uuid::parse_str(VEHICLE_ID_STR).unwrap())),
+                // FIXME: replace None with regular values
+                None, None, None, None, None, None, None, None, None);
             let row = Row {
                 columns: cql_values
             };

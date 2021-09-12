@@ -18,6 +18,7 @@ async-trait = "0.1.51"
 mockall_double = "0.2.0"
 mockall = "0.10.2"
 chrono = { version = "0.4", features = ["serde"] }
+time = "0.3.2"
 
 [dependencies.rocket]
 version = "0.5.0-dev"

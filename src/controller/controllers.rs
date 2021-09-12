@@ -50,7 +50,7 @@ pub async fn new_vehicle(vehicle_service: &State<Arc<VehicleService>>, vehicle_j
 
     let result = vehicle_service.save_vehicle(vehicle_dto).await;
 
-    Json(result)
+    Json(result.expect("Failed save Vehicle"))
 }
 
 #[cfg(test)]
