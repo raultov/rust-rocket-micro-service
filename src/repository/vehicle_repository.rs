@@ -48,8 +48,7 @@ impl VehicleRepository for VehicleRepositoryImpl {
     }
 
     async fn save_vehicle(&self, vehicle: Vehicle) -> Option<Vehicle> {
-        let query = format!("\
-            INSERT INTO vehicles.vehicle   (user_id,       \
+        let query = format!("INSERT INTO vehicles.vehicle   (user_id,       \
                                             vehicle_id,    \
                                             vehicle_type,  \
                                             name,          \
@@ -85,8 +84,10 @@ pub mod tests {
     use scylla::QueryResult;
     use scylla::transport::errors::QueryError;
     use scylla::frame::response::result::CqlValue;
+    use chrono::{Duration, NaiveDate};
 
     use mockall::mock;
+    use scylla::cql_to_rust::FromCqlVal;
 
     macro_rules! aw {
         ($e: expr) => {
@@ -122,6 +123,15 @@ pub mod tests {
         assert_eq!(fixture::EXPECTED_VEHICLE_NAME, vehicle.name);
         assert_eq!(user_id, vehicle.user_id);
         assert_eq!(vehicle_id, vehicle.vehicle_id);
+        assert_eq!(Duration::seconds(fixture::EXPECTED_CREATED_AT), vehicle.created_at);
+        assert_eq!(fixture::EXPECTED_VEHICLE_TYPE, vehicle.vehicle_type);
+        assert_eq!(Duration::seconds(fixture::EXPECTED_RETIRED_AT), vehicle.retired_at.unwrap());
+        assert_eq!(fixture::EXPECTED_BRAND, vehicle.brand);
+        assert_eq!(fixture::EXPECTED_MODEL, vehicle.model);
+        assert_eq!(fixture::EXPECTED_DISTANCE, vehicle.distance);
+        assert_eq!(NaiveDate::from_cql(CqlValue::Date(fixture::EXPECTED_OWNER_SINCE)).unwrap(), vehicle.owner_since);
+        assert_eq!(NaiveDate::from_cql(CqlValue::Date(fixture::EXPECTED_MANUFACTURING_DATE)).unwrap(), vehicle.manufacturing_date);
+        assert_eq!(fixture::EXPECTED_PICTURE, vehicle.picture.unwrap());
     }
 
     #[test]
@@ -179,24 +189,70 @@ pub mod tests {
         aw!(vehicle_repository.get_vehicle(user_id, vehicle_id));
     }
 
+    #[test]
+    fn when_save_vehicle_then_returns_vehicle() {
+        let mut session_manager = MockSessionManagerImpl::new();
+
+        // TODO finish this test
+/*
+        session_manager.expect_execute_query()
+            .withf(|query: &str| query == fixture::EXPECTED_SAVE_QUERY)
+            .times(1)
+            .returning(move |_| fixture::create_query_result(CqlValue::Text(fixture::EXPECTED_VEHICLE_NAME.to_string())));
+
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
+*/
+        //let vehicle = aw!(vehicle_repository.save_vehicle(Vehicle {})).unwrap();
+    }
+
     mod fixture {
         use super::*;
         use scylla::frame::response::result::Row;
         use scylla::frame::response::result::CqlValue;
+        use chrono::Duration;
 
         pub const USER_ID_STR: &str = "a906615e-2e6a-4edb-9377-5a6b8544791b";
         pub const VEHICLE_ID_STR: &str = "88573010-cf4c-490e-9d29-f8517dc60b90";
         pub const EXPECTED_VEHICLE_NAME: &str = "the vehicle name";
+        pub const EXPECTED_CREATED_AT: i64 = 5;
+        pub const EXPECTED_VEHICLE_TYPE: &str = "bike";
+        pub const EXPECTED_RETIRED_AT: i64 = 10;
+        pub const EXPECTED_BRAND: &str = "the brand";
+        pub const EXPECTED_MODEL: &str = "the model";
+        pub const EXPECTED_DISTANCE: i32 = 500;
+        pub const EXPECTED_OWNER_SINCE: u32 = 2147499963;
+        pub const EXPECTED_MANUFACTURING_DATE: u32 = 2147499963;
+        pub const EXPECTED_PICTURE: &str = "the picture";
         pub const EXPECTED_QUERY: &str = "SELECT name, user_id, vehicle_id, created_at, vehicle_type, retired_at, brand, model, distance, owner_since, manufacturing_date, picture \
             FROM vehicles.vehicle \
             WHERE user_id = a906615e-2e6a-4edb-9377-5a6b8544791b and vehicle_id = 88573010-cf4c-490e-9d29-f8517dc60b90";
+        pub const EXPECTED_SAVE_QUERY: &str = "INSERT INTO vehicles.vehicle   (user_id,       \
+                                            vehicle_id,    \
+                                            vehicle_type,  \
+                                            name,          \
+                                            created_at,    \
+                                            retired_at,    \
+                                            brand,         \
+                                            model,         \
+                                            distance,      \
+                                            owner_since,   \
+                                            manufacturing_date, \
+                                            picture) VALUES ({}, {}, '{}', '{}', '{}', {}, '{}', '{}', {}, '{}', '{}', {})";
 
         pub fn create_query_result(cql_value: CqlValue) -> Result<QueryResult, QueryError> {
-            let cql_values = vec!(Some(cql_value),
+            let cql_values = vec!(
+                Some(cql_value),
                 Some(CqlValue::Uuid(Uuid::parse_str(USER_ID_STR).unwrap())),
                 Some(CqlValue::Uuid(Uuid::parse_str(VEHICLE_ID_STR).unwrap())),
-                // FIXME: replace None with regular values
-                None, None, None, None, None, None, None, None, None);
+                Some(CqlValue::Timestamp(Duration::seconds(EXPECTED_CREATED_AT))),
+                Some(CqlValue::Text(EXPECTED_VEHICLE_TYPE.to_string())),
+                Some(CqlValue::Timestamp(Duration::seconds(EXPECTED_RETIRED_AT))),
+                Some(CqlValue::Text(EXPECTED_BRAND.to_string())),
+                Some(CqlValue::Text(EXPECTED_MODEL.to_string())),
+                Some(CqlValue::Int(EXPECTED_DISTANCE)),
+                Some(CqlValue::Date(EXPECTED_OWNER_SINCE)),
+                Some(CqlValue::Date(EXPECTED_MANUFACTURING_DATE)),
+                Some(CqlValue::Text(EXPECTED_PICTURE.to_string())));
             let row = Row {
                 columns: cql_values
             };
@@ -204,7 +260,7 @@ pub mod tests {
             let rows = Some(vec!(row));
 
             Ok(QueryResult {
-                rows: rows,
+                rows,
                 warnings: empty_vec,
                 tracing_id: None,
                 paging_state: None
