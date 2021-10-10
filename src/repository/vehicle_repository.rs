@@ -193,16 +193,58 @@ pub mod tests {
     fn when_save_vehicle_then_returns_vehicle() {
         let mut session_manager = MockSessionManagerImpl::new();
 
-        // TODO finish this test
-/*
         session_manager.expect_execute_query()
             .withf(|query: &str| query == fixture::EXPECTED_SAVE_QUERY)
             .times(1)
             .returning(move |_| fixture::create_query_result(CqlValue::Text(fixture::EXPECTED_VEHICLE_NAME.to_string())));
 
         let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
-*/
-        //let vehicle = aw!(vehicle_repository.save_vehicle(Vehicle {})).unwrap();
+
+        let vehicle = aw!(vehicle_repository.save_vehicle(Vehicle {
+            user_id             : Uuid::parse_str(fixture::USER_ID_STR).unwrap(),
+            vehicle_id          : Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap(),
+            vehicle_type        : fixture::EXPECTED_VEHICLE_TYPE.to_string(),
+            name                : fixture::EXPECTED_VEHICLE_NAME.to_string(),
+            created_at          : Duration::seconds(fixture::EXPECTED_CREATED_AT),
+            retired_at          : Some(Duration::seconds(fixture::EXPECTED_RETIRED_AT)),
+            brand               : fixture::EXPECTED_BRAND.to_string(),
+            model               : fixture::EXPECTED_MODEL.to_string(),
+            distance            : fixture::EXPECTED_DISTANCE,
+            owner_since         : NaiveDate::from_num_days_from_ce(15),
+            manufacturing_date  : NaiveDate::from_num_days_from_ce(15),
+            picture             : Some(fixture::EXPECTED_PICTURE.to_string())
+        })).unwrap();
+
+        assert_eq!(fixture::EXPECTED_VEHICLE_NAME, vehicle.name);
+    }
+
+    #[test]
+    fn given_error_when_save_vehicle_then_returns_none() {
+        let mut session_manager = MockSessionManagerImpl::new();
+
+        session_manager.expect_execute_query()
+        .withf(|query: &str| query == fixture::EXPECTED_SAVE_QUERY)
+            .times(1)
+            .returning(move |_| Err(QueryError::InvalidMessage("error".to_owned())));
+
+        let vehicle_repository = VehicleRepositoryImpl::new(Arc::new(session_manager));
+
+        let vehicle = aw!(vehicle_repository.save_vehicle(Vehicle {
+            user_id             : Uuid::parse_str(fixture::USER_ID_STR).unwrap(),
+            vehicle_id          : Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap(),
+            vehicle_type        : fixture::EXPECTED_VEHICLE_TYPE.to_string(),
+            name                : fixture::EXPECTED_VEHICLE_NAME.to_string(),
+            created_at          : Duration::seconds(fixture::EXPECTED_CREATED_AT),
+            retired_at          : Some(Duration::seconds(fixture::EXPECTED_RETIRED_AT)),
+            brand               : fixture::EXPECTED_BRAND.to_string(),
+            model               : fixture::EXPECTED_MODEL.to_string(),
+            distance            : fixture::EXPECTED_DISTANCE,
+            owner_since         : NaiveDate::from_num_days_from_ce(15),
+            manufacturing_date  : NaiveDate::from_num_days_from_ce(15),
+            picture             : Some(fixture::EXPECTED_PICTURE.to_string())
+        }));
+
+        assert!(vehicle.is_none());
     }
 
     mod fixture {
@@ -237,7 +279,7 @@ pub mod tests {
                                             distance,      \
                                             owner_since,   \
                                             manufacturing_date, \
-                                            picture) VALUES ({}, {}, '{}', '{}', '{}', {}, '{}', '{}', {}, '{}', '{}', {})";
+                                            picture) VALUES (a906615e-2e6a-4edb-9377-5a6b8544791b, 88573010-cf4c-490e-9d29-f8517dc60b90, 'bike', 'the vehicle name', '1970-01-01 00:00:05 UTC', '1970-01-01 00:00:10 UTC', 'the brand', 'the model', 500, '0001-01-15', '0001-01-15', 'the picture')";
 
         pub fn create_query_result(cql_value: CqlValue) -> Result<QueryResult, QueryError> {
             let cql_values = vec!(

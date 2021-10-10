@@ -112,6 +112,15 @@ pub mod tests {
         assert_eq!(UNKNOWN.to_string(), vehicle_name);
     }
 
+    #[test]
+    fn when_save_vehicle_then_vehicle_is_stored() {
+        let mut vehicle_repository = MockVehicleRepositoryImpl::new();
+
+        // TODO keep implementing this test
+        // Try to mock the mapper
+
+    }
+
     mod fixture {
         pub const USER_ID_STR: &str = "a906615e-2e6a-4edb-9377-5a6b8544791b";
         pub const VEHICLE_ID_STR: &str = "88573010-cf4c-490e-9d29-f8517dc60b90";
