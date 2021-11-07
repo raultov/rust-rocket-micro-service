@@ -45,7 +45,7 @@ pub mod tests {
     use super::*;
 
     use mockall::mock;
-    use chrono::{Duration, NaiveDate};
+    use chrono::{Duration, NaiveDate, Utc, TimeZone};
 
     macro_rules! aw {
         ($e: expr) => {
@@ -116,9 +116,42 @@ pub mod tests {
     fn when_save_vehicle_then_vehicle_is_stored() {
         let mut vehicle_repository = MockVehicleRepositoryImpl::new();
 
-        // TODO keep implementing this test
-        // Try to mock the mapper
+        vehicle_repository.expect_save_vehicle()
+            .withf(|vehicle: &Vehicle| vehicle.name == fixture::EXPECTED_VEHICLE_NAME.to_string())
+            .times(1)
+            .returning(move |vehicle| Some(vehicle));
 
+        let vehicle_service = VehicleService::new(Arc::new(vehicle_repository));
+
+        let vehicle_dto = VehicleDTO {
+            name: fixture::EXPECTED_VEHICLE_NAME.to_string(),
+            user_id: Default::default(),
+            vehicle_id: Some(Default::default()),
+            created_at: Utc.timestamp(fixture::EXPECTED_CREATED_AT, 0),
+            vehicle_type: fixture::EXPECTED_VEHICLE_TYPE.to_string(),
+            retired_at: None,
+            brand: fixture::EXPECTED_BRAND.to_string(),
+            model: fixture::EXPECTED_MODEL.to_string(),
+            distance: fixture::EXPECTED_DISTANCE,
+            owner_since: NaiveDate::from_num_days_from_ce(fixture::EXPECTED_OWNER_SINCE),
+            manufacturing_date: NaiveDate::from_num_days_from_ce(fixture::EXPECTED_MANUFACTURING_DATE),
+            picture: Some(fixture::EXPECTED_PICTURE.to_string())
+        };
+
+        let vehicle_dto_saved = aw!(vehicle_service.save_vehicle(vehicle_dto)).unwrap();
+
+        assert_eq!(vehicle_dto_saved.name, fixture::EXPECTED_VEHICLE_NAME.to_string());
+        assert_eq!(vehicle_dto_saved.user_id, Default::default());
+        assert_eq!(vehicle_dto_saved.vehicle_id, Some(Default::default()));
+        assert_eq!(vehicle_dto_saved.created_at, Utc.timestamp(fixture::EXPECTED_CREATED_AT, 0));
+        assert_eq!(vehicle_dto_saved.vehicle_type, fixture::EXPECTED_VEHICLE_TYPE.to_string());
+        assert_eq!(vehicle_dto_saved.retired_at, None);
+        assert_eq!(vehicle_dto_saved.brand, fixture::EXPECTED_BRAND.to_string());
+        assert_eq!(vehicle_dto_saved.model, fixture::EXPECTED_MODEL.to_string());
+        assert_eq!(vehicle_dto_saved.distance, fixture::EXPECTED_DISTANCE);
+        assert_eq!(vehicle_dto_saved.owner_since, NaiveDate::from_num_days_from_ce(fixture::EXPECTED_OWNER_SINCE));
+        assert_eq!(vehicle_dto_saved.manufacturing_date, NaiveDate::from_num_days_from_ce(fixture::EXPECTED_MANUFACTURING_DATE));
+        assert_eq!(vehicle_dto_saved.picture, Some(fixture::EXPECTED_PICTURE.to_string()));
     }
 
     mod fixture {
@@ -129,5 +162,9 @@ pub mod tests {
         pub const EXPECTED_BRAND: &str = "the brand";
         pub const EXPECTED_MODEL: &str = "the model";
         pub const EXPECTED_DISTANCE: i32 = 15;
+        pub const EXPECTED_PICTURE: &str = "the picture path";
+        pub const EXPECTED_CREATED_AT: i64 = 5;
+        pub const EXPECTED_OWNER_SINCE: i32 = 15;
+        pub const EXPECTED_MANUFACTURING_DATE: i32 = 15;
     }
 }

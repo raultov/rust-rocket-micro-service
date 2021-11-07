@@ -59,6 +59,7 @@ pub mod tests {
     use rocket::local::blocking::Client;
     use rocket::http::Status;
     use rocket::http::ContentType;
+    use chrono::{NaiveDate, Utc, TimeZone};
 
     #[test]
     fn when_gets_hello_then_responds_with_json_greetings() {
@@ -109,6 +110,45 @@ pub mod tests {
         assert_eq!(fixture::EXPECTED_VEHICLE_NAME.to_string(), json_response.name);
     }
 
+    #[test]
+    fn when_posts_vehicle_dto_then_responds_with_json_vehicle_data() {
+        let mut vehicle_service = VehicleService::default();
+        vehicle_service.expect_save_vehicle()
+            .withf(|vehicle_dto: &VehicleDTO| vehicle_dto.name == fixture::EXPECTED_VEHICLE_NAME.to_string())
+            .times(1)
+            .returning(move |vehicle_dto| Some(vehicle_dto))
+        ;
+
+        let rocket_build = rocket::build().manage(Arc::new(vehicle_service)).mount("/", routes![new_vehicle]);
+        let client = Client::untracked(rocket_build).expect("valid rocket instance");
+
+        let vehicle_dto = VehicleDTO {
+            name: fixture::EXPECTED_VEHICLE_NAME.to_string(),
+            user_id: Default::default(),
+            vehicle_id: Some(Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap()),
+            created_at: Utc.timestamp(fixture::EXPECTED_CREATED_AT, 0),
+            vehicle_type: fixture::EXPECTED_VEHICLE_TYPE.to_string(),
+            retired_at: None,
+            brand: fixture::EXPECTED_BRAND.to_string(),
+            model: fixture::EXPECTED_MODEL.to_string(),
+            distance: fixture::EXPECTED_DISTANCE,
+            owner_since: NaiveDate::from_num_days_from_ce(fixture::EXPECTED_OWNER_SINCE),
+            manufacturing_date: NaiveDate::from_num_days_from_ce(fixture::EXPECTED_MANUFACTURING_DATE),
+            picture: Some(fixture::EXPECTED_PICTURE.to_string())
+        };
+
+        let response = client.post("/vehicle")
+            .header(ContentType::JSON)
+            .json(&vehicle_dto)
+            .dispatch();
+
+        assert_eq!(response.status(), Status::Ok);
+        let json_response = response.into_json::<VehicleDTO>().unwrap();
+        assert_eq!(fixture::VEHICLE_ID_STR.to_string(), json_response.vehicle_id.unwrap().to_string());
+        assert_eq!(fixture::EXPECTED_VEHICLE_NAME.to_string(), json_response.name);
+        // TODO implement rest of assertions
+    }
+
     mod fixture {
         use rocket::serde::Deserialize;
 
@@ -131,5 +171,13 @@ pub mod tests {
         pub const USER_ID_STR: &str = "6176bc4b-33b6-4c9c-a4ad-c65da1322a80";
         pub const VEHICLE_ID_STR: &str = "88573010-cf4c-490e-9d29-f8517dc60b90";
         pub const EXPECTED_VEHICLE_NAME: &str = "the vehicle name";
+        pub const EXPECTED_VEHICLE_TYPE: &str = "bike";
+        pub const EXPECTED_BRAND: &str = "the brand";
+        pub const EXPECTED_MODEL: &str = "the model";
+        pub const EXPECTED_DISTANCE: i32 = 15;
+        pub const EXPECTED_PICTURE: &str = "the picture path";
+        pub const EXPECTED_CREATED_AT: i64 = 5;
+        pub const EXPECTED_OWNER_SINCE: i32 = 15;
+        pub const EXPECTED_MANUFACTURING_DATE: i32 = 15;
     }
 }
