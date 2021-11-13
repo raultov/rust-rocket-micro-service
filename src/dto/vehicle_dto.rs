@@ -1,16 +1,15 @@
+use chrono::{NaiveDate, DateTime, Utc};
 use rocket::serde::uuid::Uuid;
-use scylla::macros::FromRow;
-use scylla::frame::response::cql_to_rust::FromRow;
-use chrono::{Duration, NaiveDate};
+use rocket::serde::{Serialize, Deserialize};
 
-#[derive(FromRow, Debug)]
-pub struct Vehicle {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct VehicleDTO {
     pub name                : String,
     pub user_id             : Uuid,
-    pub vehicle_id          : Uuid,
-    pub created_at          : Duration,
+    pub vehicle_id          : Option<Uuid>,
+    pub created_at          : DateTime<Utc>,
     pub vehicle_type        : String,
-    pub retired_at          : Option<Duration>,
+    pub retired_at          : Option<DateTime<Utc>>,
     pub brand               : String,
     pub model               : String,
     pub distance            : i32,
