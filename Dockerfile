@@ -21,7 +21,7 @@ COPY . /app
 RUN cargo test
 
 # run integration tests
-RUN bash IT/launch-it-tests.sh
+RUN cd IT && bash launch-it-tests.sh && cd ..
 
 ###############
 ### release ###

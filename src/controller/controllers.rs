@@ -124,7 +124,7 @@ pub mod tests {
 
         let vehicle_dto = VehicleDTO {
             name: fixture::EXPECTED_VEHICLE_NAME.to_string(),
-            user_id: Default::default(),
+            user_id: Uuid::parse_str(fixture::USER_ID_STR).unwrap(),
             vehicle_id: Some(Uuid::parse_str(fixture::VEHICLE_ID_STR).unwrap()),
             created_at: Utc.timestamp(fixture::EXPECTED_CREATED_AT, 0),
             vehicle_type: fixture::EXPECTED_VEHICLE_TYPE.to_string(),
@@ -146,7 +146,16 @@ pub mod tests {
         let json_response = response.into_json::<VehicleDTO>().unwrap();
         assert_eq!(fixture::VEHICLE_ID_STR.to_string(), json_response.vehicle_id.unwrap().to_string());
         assert_eq!(fixture::EXPECTED_VEHICLE_NAME.to_string(), json_response.name);
-        // TODO implement rest of assertions
+        assert_eq!(fixture::USER_ID_STR.to_string(), json_response.user_id.to_string());
+        assert_eq!(Utc.timestamp(fixture::EXPECTED_CREATED_AT, 0), json_response.created_at);
+        assert_eq!(fixture::EXPECTED_VEHICLE_TYPE.to_string(), json_response.vehicle_type);
+        assert!(json_response.retired_at.is_none());
+        assert_eq!(fixture::EXPECTED_BRAND.to_string(), json_response.brand);
+        assert_eq!(fixture::EXPECTED_MODEL.to_string(), json_response.model);
+        assert_eq!(fixture::EXPECTED_DISTANCE, json_response.distance);
+        assert_eq!(NaiveDate::from_num_days_from_ce(fixture::EXPECTED_OWNER_SINCE), json_response.owner_since);
+        assert_eq!(NaiveDate::from_num_days_from_ce(fixture::EXPECTED_MANUFACTURING_DATE), json_response.manufacturing_date);
+        assert_eq!(fixture::EXPECTED_PICTURE.to_string(), json_response.picture.unwrap());
     }
 
     mod fixture {
