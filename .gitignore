@@ -16,4 +16,5 @@ Cargo.lock
 # Others
 .vscode/
 .idea/
+*.pem
 
